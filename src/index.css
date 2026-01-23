@@ -6,6 +6,6 @@
 
 @layer base {
   body {
-    @apply font-sans antialiased text-slate-900 bg-slate-50 select-none;
+    @apply font-sans antialiased text-slate-900 bg-slate-50 select-none overflow-x-hidden;
   }
 }

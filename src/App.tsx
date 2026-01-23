@@ -5,7 +5,7 @@ import { HallSetup } from './components/HallSetup';
 import { ImportConfig } from './components/ImportConfig';
 import { HallGrid } from './components/HallGrid';
 import { ClassGroup, Hall, Desk, Student } from './types';
-import { ArrowLeft, Download, School, Trash2, Calendar, Edit2, X, Plus } from 'lucide-react';
+import { ArrowLeft, Download, School, Trash2, Calendar, Edit2, X, Plus, Link } from 'lucide-react';
 import { Packer, Document, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, PageOrientation, AlignmentType, Header, Footer, VerticalAlign } from 'docx';
 
 
@@ -784,7 +784,12 @@ function App() {
                     </div>
                 )}
 
+
             </div >
+                <footer className='overflow-hidden bg-slate-900 p-5'>
+                    <h1 className='text-slate-500 text-center font-mono'>Created By Karthikrishna</h1>
+                    <a className='text-slate-500 text-center font-mono block' href="mailto:karthikrishna465@gmail.com">karthikrishna465@gmail.com</a>
+                </footer>
         </DndContext >
     );
 }
