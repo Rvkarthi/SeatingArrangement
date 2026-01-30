@@ -608,6 +608,64 @@ function App() {
                 const totalStudents = hall.desks.reduce((acc, desk) => acc + desk.students.filter(s => s !== null).length, 0);
                 const formattedDate = examDate.split('-').reverse().join('-');
 
+                const uniqueClasses = Array.from(new Set(hall.desks.flatMap(d => d.students).filter(s => s !== null).map(s => s!.className))).sort();
+
+                const summaryTableRows = [
+                    // Row 1: Faculty Name
+                    new TableRow({
+                        children: [
+                            new TableCell({
+                                children: [new Paragraph({ children: [new TextRun({ text: "Faculty Name", bold: true })] })], // Header
+                                width: { size: 25, type: WidthType.PERCENTAGE },
+                            }),
+                            ...Array(6).fill(null).map(() => new TableCell({ children: [], width: { size: 12.5, type: WidthType.PERCENTAGE } }))
+                        ]
+                    }),
+                    // Row 2: Date
+                    new TableRow({
+                        children: [
+                            new TableCell({
+                                children: [new Paragraph({ children: [new TextRun({ text: "Date", bold: true })] })],
+                            }),
+                            ...Array(6).fill(null).map(() => new TableCell({ children: [] }))
+                        ]
+                    }),
+                    // Dynamic Rows: Classes
+                    ...uniqueClasses.map(className =>
+                        new TableRow({
+                            children: [
+                                new TableCell({
+                                    children: [new Paragraph({ children: [new TextRun({ text: className, bold: true })] })],
+                                }),
+                                ...Array(6).fill(null).map(() => new TableCell({ children: [] }))
+                            ]
+                        })
+                    ),
+                    // Last Row: Faculty Sign
+                    new TableRow({
+                        children: [
+                            new TableCell({
+                                children: [new Paragraph({ children: [new TextRun({ text: "Faculty Sign", bold: true })] })],
+                            }),
+                            ...Array(6).fill(null).map(() => new TableCell({ children: [] }))
+                        ]
+                    })
+                ];
+
+                const summaryTable = new Table({
+                    rows: summaryTableRows,
+                    width: { size: 100, type: WidthType.PERCENTAGE },
+                    alignment: AlignmentType.CENTER,
+                    borders: {
+                        top: { style: "single", size: 4, color: "000000" },
+                        bottom: { style: "single", size: 4, color: "000000" },
+                        left: { style: "single", size: 4, color: "000000" },
+                        right: { style: "single", size: 4, color: "000000" },
+                        insideVertical: { style: "single", size: 4, color: "000000" },
+                        insideHorizontal: { style: "single", size: 4, color: "000000" },
+                    }
+                });
+
                 return {
                     properties: {
                         page: {
@@ -654,7 +712,9 @@ function App() {
                         new Paragraph({
                             children: [new TextRun({ text: `Total Strength: ${totalStudents}`, bold: true, size: 20 })],
                             alignment: AlignmentType.LEFT,
-                        })
+                        }),
+                        new Paragraph({ text: "\n" }),
+                        summaryTable
                     ]
                 };
             });
