@@ -68,6 +68,56 @@ function App() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isAddHallOpen, setIsAddHallOpen] = useState(false);
 
+    // Selection & Seat Move Logic
+    const [selectionModeHallId, setSelectionModeHallId] = useState<string | null>(null);
+
+    const toggleSelectionMode = (hallId: string) => {
+        setSelectionModeHallId(prev => prev === hallId ? null : hallId);
+    };
+
+    const handleSeatMove = (source: { hallId: string, deskId: string, seatIndex: number }, target: { hallId: string, deskId: string, seatIndex: number }) => {
+        setHalls(prevHalls => {
+            const newHalls = [...prevHalls];
+            const sHallIdx = newHalls.findIndex(h => h.id === source.hallId);
+            const tHallIdx = newHalls.findIndex(h => h.id === target.hallId);
+
+            if (sHallIdx === -1 || tHallIdx === -1) return prevHalls;
+
+            const sHall = { ...newHalls[sHallIdx], desks: [...newHalls[sHallIdx].desks] };
+            const tHall = source.hallId === target.hallId ? sHall : { ...newHalls[tHallIdx], desks: [...newHalls[tHallIdx].desks] };
+
+            const sDeskIdx = sHall.desks.findIndex(d => d.id === source.deskId);
+            const tDeskIdx = tHall.desks.findIndex(d => d.id === target.deskId);
+
+            if (sDeskIdx === -1 || tDeskIdx === -1) return prevHalls;
+
+            // Handle Same Desk Swap
+            if (source.hallId === target.hallId && source.deskId === target.deskId) {
+                const desk = { ...sHall.desks[sDeskIdx], students: [...sHall.desks[sDeskIdx].students] };
+                const temp = desk.students[source.seatIndex];
+                desk.students[source.seatIndex] = desk.students[target.seatIndex];
+                desk.students[target.seatIndex] = temp;
+                sHall.desks[sDeskIdx] = desk;
+            } else {
+                // Different Desks
+                const sDesk = { ...sHall.desks[sDeskIdx], students: [...sHall.desks[sDeskIdx].students] };
+                const tDesk = { ...tHall.desks[tDeskIdx], students: [...tHall.desks[tDeskIdx].students] };
+
+                const temp = sDesk.students[source.seatIndex];
+                sDesk.students[source.seatIndex] = tDesk.students[target.seatIndex];
+                tDesk.students[target.seatIndex] = temp;
+
+                sHall.desks[sDeskIdx] = sDesk;
+                tHall.desks[tDeskIdx] = tDesk;
+            }
+
+            newHalls[sHallIdx] = sHall;
+            if (source.hallId !== target.hallId) newHalls[tHallIdx] = tHall;
+
+            return newHalls;
+        });
+    };
+
 
 
     // Helper to filter view
@@ -389,8 +439,22 @@ function App() {
         setActiveDragId(null);
         const { active, over } = event;
 
-        if (over && over.data.current?.type === 'HALL') {
-            const hallId = over.data.current.hallId;
+        if (!over) return;
+
+        const activeType = active.data.current?.type;
+        const overType = over.data.current?.type;
+
+        // Handle Seat Move (Seat -> Seat)
+        if (activeType === 'SEAT' && overType === 'SEAT') {
+            const source = active.data.current as { hallId: string, deskId: string, seatIndex: number };
+            const target = over.data.current as { hallId: string, deskId: string, seatIndex: number };
+            handleSeatMove(source, target);
+            return;
+        }
+
+        // Handle Class Distribution (Class -> Hall or Class -> Seat)
+        if (activeType !== 'SEAT' && (overType === 'HALL' || overType === 'SEAT')) {
+            const hallId = over.data.current?.hallId;
             const classGroup = active.data.current?.classGroup as ClassGroup;
 
             if (!hallId || !classGroup) return;
@@ -699,6 +763,8 @@ function App() {
                                         onEdit={() => setEditingHall(hall)}
                                         onDelete={() => removeHall(hall.id)}
                                         onClear={() => clearHallStudents(hall.id)}
+                                        isSelectMode={selectionModeHallId === hall.id}
+                                        onToggleSelectMode={() => toggleSelectionMode(hall.id)}
                                     />
                                 ))}
                             </div>
