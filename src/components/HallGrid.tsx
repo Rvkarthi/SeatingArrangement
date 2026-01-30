@@ -173,7 +173,7 @@ const DeskItem = ({ desk, index, capacity, getClassColor, isExpanded }: { desk: 
                         <div
                             key={i}
                             className={cn(
-                                "flex-1 flex items-center justify-center p-1.5 rounded-md text-[10px] font-bold truncate h-8",
+                                "flex-1 flex flex-col items-center justify-center p-1.5 rounded-md text-xs font-bold h-12 overflow-hidden",
                                 student
                                     ? cn(getClassColor(student.className), "text-white shadow-sm")
                                     : "bg-slate-900/50 text-slate-600 border border-slate-800 border-dashed"
@@ -181,7 +181,10 @@ const DeskItem = ({ desk, index, capacity, getClassColor, isExpanded }: { desk: 
                             title={student ? `${student.className} - ${student.registerNumber}` : "Empty"}
                         >
                             {student ? (
-                                <span className="truncate w-full text-center">{student.className}</span>
+                                <>
+                                    <span className="truncate w-full text-center leading-tight">{student.className}</span>
+                                    <span className="truncate w-full text-center text-[10px] opacity-90 font-mono leading-tight">{student.registerNumber}</span>
+                                </>
                             ) : (
                                 <span className="opacity-50">-</span>
                             )}

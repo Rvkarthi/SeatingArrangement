@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { DndContext, DragEndEvent, DragOverlay } from '@dnd-kit/core';
+import { cn } from './lib/utils';
 import { Sidebar } from './components/Sidebar';
 import { HallSetup } from './components/HallSetup';
 import { ImportConfig } from './components/ImportConfig';
@@ -26,7 +27,7 @@ function App() {
 
     const toggleHallExpand = (hallId: string) => {
         setExpandedHallIds(prev =>
-            prev.includes(hallId) ? prev.filter(id => id !== hallId) : [...prev, hallId]
+            prev.includes(hallId) ? [] : [hallId]
         );
     };
 
@@ -34,7 +35,16 @@ function App() {
         if (expandedHallIds.length === halls.length) {
             setExpandedHallIds([]); // Collapse All
         } else {
-            setExpandedHallIds(halls.map(h => h.id)); // Expand All
+            // In "Focus Mode" preference, Expand All doesn't map well to "Hide Others".
+            // We'll just clear or expand all for consistency check, but UI will stack them or show first?
+            // To strictly follow "Hide Others", we probably shouldn't allow expanding all at once.
+            // But let's assume "Expand All" just bypasses the "Hide Others" rule visually or we just disable it?
+            // Let's make it expand all, but the user will see them stacked.
+            // Wait, if I change the render to "filter", then expanding ALL means showing ALL.
+            // So toggleAll is fine.
+            // It will show ALL.
+            // But `toggleHallExpand` is exclusive.
+            setExpandedHallIds(halls.map(h => h.id));
         }
     };
 
@@ -45,6 +55,15 @@ function App() {
     const [examDate, setExamDate] = useState(new Date().toISOString().split('T')[0]);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isAddHallOpen, setIsAddHallOpen] = useState(false);
+
+
+
+    // Helper to filter view
+    const visibleHalls = expandedHallIds.length > 0
+        ? halls.filter(h => expandedHallIds.includes(h.id))
+        : halls;
+
+
 
     const handleImport = (importedClasses: ClassGroup[]) => {
         setClasses(importedClasses);
@@ -150,7 +169,11 @@ function App() {
 
         // Deep copy desks
         const newDesks = targetHall.desks.map(d => ({ ...d, students: [...d.students] }));
-        const availableStudents = [...newClass.students];
+
+        // Sort students by Register Number to ensure valid sequence
+        const availableStudents = [...newClass.students].sort((a, b) =>
+            a.registerNumber.localeCompare(b.registerNumber, undefined, { numeric: true })
+        );
         const initialCount = availableStudents.length;
 
         // Smart Allocation Strategy: Seat-Major Fill
@@ -159,27 +182,33 @@ function App() {
         // Prioritize Ends 0 and 2 for 3-seater.
         const seatOrder = capacity === 3 ? [0, 2, 1] : Array.from({ length: capacity }, (_, i) => i);
 
+        // Sort desks for Column-Major traversal (Top-down, Left-right)
+        const sortedDesks = [...newDesks].sort((a, b) => {
+            if (a.col !== b.col) return a.col - b.col;
+            return a.row - b.row;
+        });
+
         for (const seatIdx of seatOrder) {
-            for (let deskIdx = 0; deskIdx < newDesks.length; deskIdx++) {
+            for (const desk of sortedDesks) {
                 if (availableStudents.length === 0) break;
 
                 // Only fill if empty
-                if (newDesks[deskIdx].students[seatIdx] === null) {
+                if (desk.students[seatIdx] === null) {
                     const candidateStudent = availableStudents[0];
                     let conflict = false;
 
                     // Generic Constraint: Avoid same class neighbors
                     if (seatIdx > 0) {
-                        const left = newDesks[deskIdx].students[seatIdx - 1];
+                        const left = desk.students[seatIdx - 1];
                         if (left && left.className === candidateStudent.className) conflict = true;
                     }
                     if (seatIdx < capacity - 1) {
-                        const right = newDesks[deskIdx].students[seatIdx + 1];
+                        const right = desk.students[seatIdx + 1];
                         if (right && right.className === candidateStudent.className) conflict = true;
                     }
 
                     if (!conflict) {
-                        newDesks[deskIdx].students[seatIdx] = availableStudents.shift() || null;
+                        desk.students[seatIdx] = availableStudents.shift() || null;
                     }
                 }
             }
@@ -227,8 +256,11 @@ function App() {
         // We know Hall has Class A. 
         // Note: Students in Hall need to be "returned" to valid pool for logic, or we just extract them.
 
-        const studentsInHall = targetHall.desks.flatMap(d => d.students).filter(s => s !== null && s.className === classA) as Student[];
-        const studentsNew = tempDragData.classGroup.students; // New class students
+        const studentsInHall = (targetHall.desks.flatMap(d => d.students).filter(s => s !== null && s.className === classA) as Student[])
+            .sort((a, b) => a.registerNumber.localeCompare(b.registerNumber, undefined, { numeric: true }));
+
+        const studentsNew = [...tempDragData.classGroup.students]
+            .sort((a, b) => a.registerNumber.localeCompare(b.registerNumber, undefined, { numeric: true })); // New class students
 
         const allA = [...studentsInHall];
         const allB = [...studentsNew];
@@ -252,14 +284,26 @@ function App() {
         // Rebuild Desks
         const newDesks = targetHall.desks.map(d => ({ ...d, students: Array(3).fill(null) as (Student | null)[] }));
 
-        newDesks.forEach(desk => {
-            // Fill Seat 0 (Side)
-            if (listSide.length > 0) desk.students[0] = listSide.shift() || null;
-            // Fill Seat 1 (Middle)
-            if (listMiddle.length > 0) desk.students[1] = listMiddle.shift() || null;
-            // Fill Seat 2 (Side)
-            if (listSide.length > 0) desk.students[2] = listSide.shift() || null;
+        // Sort desks for Column-Major traversal
+        const sortedDesks = [...newDesks].sort((a, b) => {
+            if (a.col !== b.col) return a.col - b.col;
+            return a.row - b.row;
         });
+
+        // Fill 1: Seat 0 (Side) - Vertical Fill
+        for (const desk of sortedDesks) {
+            if (listSide.length > 0) desk.students[0] = listSide.shift() || null;
+        }
+
+        // Fill 2: Seat 2 (Side) - Vertical Fill
+        for (const desk of sortedDesks) {
+            if (listSide.length > 0) desk.students[2] = listSide.shift() || null;
+        }
+
+        // Fill 3: Seat 1 (Middle) - Vertical Fill
+        for (const desk of sortedDesks) {
+            if (listMiddle.length > 0) desk.students[1] = listMiddle.shift() || null;
+        }
 
         // Update Hall
         const updatedHall = { ...targetHall, desks: newDesks };
@@ -628,8 +672,11 @@ function App() {
                                 )}
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-8 pb-20">
-                                {halls.map(hall => (
+                            <div className={cn(
+                                "grid gap-8 pb-20",
+                                expandedHallIds.length > 0 ? "grid-cols-1 w-full" : "grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3"
+                            )}>
+                                {visibleHalls.map(hall => (
                                     <HallGrid
                                         key={hall.id}
                                         hall={hall}
@@ -786,10 +833,10 @@ function App() {
 
 
             </div >
-                <footer className='overflow-hidden bg-slate-900 p-5'>
-                    <h1 className='text-slate-500 text-center font-mono'>Created By Karthikrishna</h1>
-                    <a className='text-slate-500 text-center font-mono block' href="mailto:karthikrishna465@gmail.com">karthikrishna465@gmail.com</a>
-                </footer>
+            <footer className='overflow-hidden bg-slate-900 p-5'>
+                <h1 className='text-slate-500 hover:text-purple-500 cursor-pointer text-center font-mono'>Created By Karthikrishna</h1>
+                <a className='text-slate-500 hover:text-purple-500 cursor-pointer text-center font-mono block' href="mailto:karthikrishna465@gmail.com">karthikrishna465@gmail.com</a>
+            </footer>
         </DndContext >
     );
 }
