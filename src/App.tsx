@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DndContext, DragEndEvent, DragOverlay } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragOverlay, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { cn } from './lib/utils';
 import { Sidebar } from './components/Sidebar';
 import { HallSetup } from './components/HallSetup';
@@ -14,6 +14,18 @@ function App() {
     const [classes, setClasses] = useState<ClassGroup[]>([]);
     const [halls, setHalls] = useState<Hall[]>([]); // Changed to array
     const [editingHall, setEditingHall] = useState<Hall | null>(null); // For edit modal
+
+    // Dnd Sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5, // 5px movement required to drag, allows clicks
+            },
+        })
+    );
+
+    // Selection State
+    const [selectedSeats, setSelectedSeats] = useState<Set<string>>(new Set());
 
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
     const [middleSeatPrompt, setMiddleSeatPrompt] = useState<{ isOpen: boolean, classA: string, classB: string, hallId: string } | null>(null);
@@ -188,27 +200,32 @@ function App() {
             return a.row - b.row;
         });
 
-        for (const seatIdx of seatOrder) {
-            for (const desk of sortedDesks) {
-                if (availableStudents.length === 0) break;
+        // Fill Column-by-Column completely before moving to next column
+        for (let c = 1; c <= targetHall.cols; c++) {
+            const desksInCol = sortedDesks.filter(d => d.col === c);
 
-                // Only fill if empty
-                if (desk.students[seatIdx] === null) {
-                    const candidateStudent = availableStudents[0];
-                    let conflict = false;
+            for (const seatIdx of seatOrder) {
+                for (const desk of desksInCol) {
+                    if (availableStudents.length === 0) break;
 
-                    // Generic Constraint: Avoid same class neighbors
-                    if (seatIdx > 0) {
-                        const left = desk.students[seatIdx - 1];
-                        if (left && left.className === candidateStudent.className) conflict = true;
-                    }
-                    if (seatIdx < capacity - 1) {
-                        const right = desk.students[seatIdx + 1];
-                        if (right && right.className === candidateStudent.className) conflict = true;
-                    }
+                    // Only fill if empty
+                    if (desk.students[seatIdx] === null) {
+                        const candidateStudent = availableStudents[0];
+                        let conflict = false;
 
-                    if (!conflict) {
-                        desk.students[seatIdx] = availableStudents.shift() || null;
+                        // Generic Constraint: Avoid same class neighbors
+                        if (seatIdx > 0) {
+                            const left = desk.students[seatIdx - 1];
+                            if (left && left.className === candidateStudent.className) conflict = true;
+                        }
+                        if (seatIdx < capacity - 1) {
+                            const right = desk.students[seatIdx + 1];
+                            if (right && right.className === candidateStudent.className) conflict = true;
+                        }
+
+                        if (!conflict) {
+                            desk.students[seatIdx] = availableStudents.shift() || null;
+                        }
                     }
                 }
             }
@@ -290,19 +307,24 @@ function App() {
             return a.row - b.row;
         });
 
-        // Fill 1: Seat 0 (Side) - Vertical Fill
-        for (const desk of sortedDesks) {
-            if (listSide.length > 0) desk.students[0] = listSide.shift() || null;
-        }
+        // Fill Column-by-Column
+        for (let c = 1; c <= targetHall.cols; c++) {
+            const desksInCol = sortedDesks.filter(d => d.col === c);
 
-        // Fill 2: Seat 2 (Side) - Vertical Fill
-        for (const desk of sortedDesks) {
-            if (listSide.length > 0) desk.students[2] = listSide.shift() || null;
-        }
+            // Fill 1: Seat 0 (Side) - Vertical Fill for this column
+            for (const desk of desksInCol) {
+                if (listSide.length > 0) desk.students[0] = listSide.shift() || null;
+            }
 
-        // Fill 3: Seat 1 (Middle) - Vertical Fill
-        for (const desk of sortedDesks) {
-            if (listMiddle.length > 0) desk.students[1] = listMiddle.shift() || null;
+            // Fill 2: Seat 2 (Side) - Vertical Fill for this column
+            for (const desk of desksInCol) {
+                if (listSide.length > 0) desk.students[2] = listSide.shift() || null;
+            }
+
+            // Fill 3: Seat 1 (Middle) - Vertical Fill for this column
+            for (const desk of desksInCol) {
+                if (listMiddle.length > 0) desk.students[1] = listMiddle.shift() || null;
+            }
         }
 
         // Update Hall
@@ -542,7 +564,7 @@ function App() {
                         default: new Footer({
                             children: [
                                 new Paragraph({
-                                    children: [new TextRun({ text: "HoD Signature", bold: true, size: 24 })],
+                                    children: [new TextRun({ text: "HoD", bold: true, size: 24 })],
                                     alignment: AlignmentType.RIGHT,
                                 })
                             ]
