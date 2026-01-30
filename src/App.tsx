@@ -282,17 +282,8 @@ function App() {
         const allA = [...studentsInHall];
         const allB = [...studentsNew];
 
-        // "Smart Force": Overwrite user selection if one class needs to be on sides to avoid adjacency.
-        // If Class A has ~2x students of Class B, A must be on Sides (2 slots) and B in Middle (1 slot).
-        let targetMiddle = middleClass;
-
-        if (allA.length > allB.length && allB.length > 0) {
-            // A is Majority. To fit 2 A's per desk, A must be Side. B must be Middle.
-            targetMiddle = classB;
-        } else if (allB.length > allA.length && allA.length > 0) {
-            // B is Majority. Force B Side, A Middle.
-            targetMiddle = classA;
-        }
+        // Respect user selection for middle seat - no auto-override based on counts.
+        const targetMiddle = middleClass;
 
         // Determine which list goes to Side and Middle based on target
         const listMiddle = targetMiddle === classA ? allA : allB;
